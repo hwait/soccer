@@ -10,3 +10,4 @@
 *.7z
 *.html
 *.json
+!.empty
