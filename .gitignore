@@ -5,6 +5,8 @@
 /geckodriver.log
 /html
 /protocols
-/raw
-/raw.7z
 /__pycache__
+/data/matches.csv
+*.7z
+*.html
+*.json
