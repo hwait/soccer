@@ -1,0 +1,10 @@
+/.vscode
+/data.xlsx
+/debug.log
+/docs
+/geckodriver.log
+/html
+/protocols
+/raw
+/raw.7z
+/__pycache__
