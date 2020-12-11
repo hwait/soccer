@@ -5,6 +5,9 @@ import time
 import requests
 from stem import Signal
 from stem.control import Controller
+from seleniumwire import webdriver
+#from selenium import webdriver
+#from selenium.webdriver.chrome.options import Options
 import re
 import pandas as pd
 import numpy as np
@@ -21,8 +24,11 @@ class DataProvider:
         self.LOCAL_TZ = 'Asia/Almaty'
         self.SERVER_TZ = 'UTC'
         self.DATA_PATH='data/'
-        self.DAYS_RAW_PATH='raw/days/'
-        self.MATCHES_RAW_PATH='raw/matches/'
+        self.SS_DAYS_RAW_PATH='raw/sofa/days/'
+        self.SS_MATCHES_RAW_PATH='raw/sofa/matches/'
+        self.FB_DAYS_RAW_PATH='raw/fbref/days/'
+        self.FB_MATCHES_RAW_PATH='raw/fbref/matches/'
+        self.OP_MATCHES_RAW_PATH='raw/op/matches/'
         self.SERVER_ERROR=False
         self.DATA=[]
         self.PROXY = {'https': 'socks5://127.0.0.1:9051'}
@@ -44,6 +50,21 @@ class DataProvider:
                 "TE": "Trailers",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0" }
     
+    def _fbref_headers(self):
+        return {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Language": "en-US,en;q=0.5",
+                "cache-control": "max-age=0",
+                "dnt": "1",
+                "sec-fetch-dest": "document",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "none",
+                "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
+                "Host": "fbref.com",
+                "Origin": "https://fbref.com",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:82.0) Gecko/20100101 Firefox/82.0" }
     
     def _get_dates(self, ds,de):
         dates=[]
@@ -196,6 +217,7 @@ class DataProvider:
                 self._load_data()
         
 
+
     def load_matches(self):
         self.COUNTER=0
         self.PAUSE=True
@@ -258,3 +280,106 @@ class DataProvider:
         else:
             if self.PAUSE:
                 time.sleep(random.uniform(0, 1))
+        
+    def load_fbref_matches(self):
+        self.HEADERS=self._fbref_headers()
+        base_link='https://fbref.com'
+        csv_name=self.DATA_PATH+'fbref/matches.csv'
+        df_matches=pd.read_csv(csv_name, index_col=None)
+        df_matches=df_matches.sample(frac=1).reset_index(drop=True)
+        cmax=random.randint(30, 50)
+        c=0
+        for row in df_matches[df_matches['done']==0].itertuples():
+            link=base_link+row.link
+            file_name=self.FB_MATCHES_RAW_PATH+link.split('/')[5]+'.htm'
+            print(link, file_name)
+
+            r = requests.get(link, headers=self.HEADERS)
+            if r.status_code==200:
+                if path.exists(file_name):
+                    print(file_name, ' exists!')
+                else:
+                    with open(file_name, 'w+', encoding='utf8') as f:
+                        f.write(r.text)
+                    print(f' done #{c}! {file_name}')
+                df_matches.at[row.Index, 'done'] = 1
+            else:
+                print(f'ERROR {r.status_code}!!!', end='')
+                self.SERVER_ERROR=True
+
+            if c==cmax:
+                print('saving...')
+                df_matches.to_csv(csv_name, index=False)
+                time.sleep(random.uniform(2, 5))
+                cmax=random.randint(30, 50)
+                c=0
+            c+=1
+            #break
+
+    def _load_link(self,file_name, link):
+        if path.exists(file_name):
+            print(file_name, ' exists!')
+            with open(file_name, 'r', encoding='utf8') as f:
+                html=f.read()
+        else:
+            print(f'loading {link}...', end='')
+            self.firefox.get('https://www.oddsportal.com/'+link)
+            time.sleep(random.uniform(0, 1))
+            #request = self.firefox.wait_for_request(self.firefox.requests[0].url, timeout=30)
+            # for req in self.firefox.requests:
+            #     if req.response:
+            #         print(req.url,req.response.status_code)
+            request = self.firefox.requests[0]
+            html=str(request.response.body)
+            n=0
+            if not "oddsdata" in html:
+                time.sleep(1)
+                request = self.firefox.requests[0]
+                html=str(request.response.body)
+                n+=1
+                if not "oddsdata" in html:
+                    time.sleep(1)
+                    request = self.firefox.requests[0]
+                    html=str(request.response.body)
+                    n+=1
+                    if not "oddsdata" in html:
+                        time.sleep(1)
+                        request = self.firefox.requests[0]
+                        html=str(request.response.body)
+                        n+=1
+            with open(file_name, 'w+', encoding='utf8') as f:
+                f.write(html[68:-3])
+            del self.firefox.requests
+            print(f'done {len(html)} bytes, {n} tries')
+        return html
+
+    def load_op_matches(self):
+        options = {
+                'connection_keep_alive': True,
+                'connection_timeout': None
+            }
+        #self.firefox = webdriver.Firefox(executable_path=r'../lib/geckodriver.exe',seleniumwire_options=options)
+        self.firefox = webdriver.Firefox(executable_path=r'../lib/geckodriver.exe')
+        self.firefox.scopes = ['fb.oddsportal.com/feed/match/*']
+        csv_name=self.DATA_PATH+'op/matches.csv'
+        df_matches=pd.read_csv(csv_name, index_col=None)
+        df_matches=df_matches.sample(frac=1).reset_index(drop=True)
+        cmax=random.randint(30, 50)
+        c=0
+        for row in df_matches[df_matches['done']==0].itertuples():
+            link=row.link
+            file_name=self.OP_MATCHES_RAW_PATH+link.split('/')[4].split('-')[-1]+'.json'
+            #print(link, file_name)
+            html=self._load_link(file_name,link)
+            if "oddsdata" in html:
+                df_matches.at[row.Index, 'done'] = 1
+            if c==cmax:
+                print('saving...')
+                df_matches.to_csv(csv_name, index=False)
+                time.sleep(random.uniform(2, 5))
+                cmax=random.randint(30, 50)
+                c=0
+            c+=1
+            #break
+
+        
