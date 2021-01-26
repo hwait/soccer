@@ -149,6 +149,7 @@ if __name__ == '__main__':
                 match_changes=[]
                 odds_changes=[]
                 for f in tqdm(listdir(in_path)):
+                    #print(f)
                     read_match(int(f),in_path)
                     #break
                 out_path='{}/{:%Y-%b-%d}'.format(OUT_PATH, d)
