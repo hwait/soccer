@@ -96,9 +96,36 @@ class SofaDataProvider:
                 df[outs[1]] = encoder.transform(df[[features[1]]])
         return df
 
-    def _provide_statistics(self):
+    def _provide_statistics(self, df_src, period='ALL'):
         df=pd.read_csv(self.DATA_PATH+'statistics.csv', index_col=False)
-        return df
+        #nulls=pd.DataFrame(df.isna().sum(), columns=['n'])
+        #drop_cols=['Blocked shots', 'Duels won', 'Shots inside box', 'Shots outside box', 'Passes', 'Accurate passes', 'Aerials won', 'Big chances', 'Clearances', 'Big chances missed', 'Long balls', 'Dribbles', 'Crosses', 'Interceptions', 'Tackles', 'Possession lost', 'Hit woodwork', 'Red cards', 'Counter attacks', 'Counter attack shots', 'Counter attack goals', 'Total shots']
+        #cols_to_keep=[x for x in df.columns if not x in drop_cols]
+        cols_to_keep=['mid', 'period', 'ishome', 'Ball possession', 'Shots on target', 'Shots off target', 'Corner kicks', 'Offsides', 'Fouls', 'Yellow cards', 'Goalkeeper saves']
+        df=df[cols_to_keep]
+        df=df.reset_index(drop=True)
+        df['precision']=np.where(df['Shots on target']>0, df['Shots off target']/df['Shots on target'], 0)        
+        for col in df.columns[4:]:
+            df=self._encode('sc', [col], [col], df)
+        #scaler = MinMaxScaler()
+        #df_scaled = scaler.fit_transform(df[df.columns[4:]])
+        #df=pd.concat([df[df.columns[:4]],pd.DataFrame(df_scaled, columns=df.columns[4:])], axis=1)
+
+        cols_stats=['possession', 'shont', 'shofft', 'corners', 'offsides', 'fouls', 'cards', 'gksaves','precision']
+        df1=df[df['ishome']==1].reset_index(drop=True).sort_values(by='mid')
+        df1=df1.drop(columns=['period', 'ishome'])
+        df1.columns=['mid']+[x+'1' for x in cols_stats]
+        df0=df[df['ishome']==0].reset_index(drop=True).sort_values(by='mid')
+        df0=df0.drop(columns=['mid','period', 'ishome'])
+        df0.columns=[x+'2' for x in cols_stats]
+        df=pd.concat([df1,df0], axis=1)
+        df=df.dropna()
+        df['possession1']=df['possession1'].str[:-1].astype(float)/100
+        df['possession2']=df['possession2'].str[:-1].astype(float)/100
+
+        df=df.drop_duplicates()
+        df_src=df_src.merge(df, on='mid', how='left')
+        return df_src
 
     def _provide_lineups(self):
         df=pd.read_csv(self.DATA_PATH+'lineups.csv', index_col=False)
@@ -157,7 +184,7 @@ class SofaDataProvider:
 
         for key in intervals:
             df_src.loc[df_src.y==key, 'pop_r']=pd.cut(df_src[df_src.y==key]['votes'], bins=intervals[key], labels=False, include_lowest=True)
-        df_src.pop_r=df_src.pop_r.astype(int)
+        #df_src.pop_r=df_src.pop_r.astype(int)
         df_src.drop(columns=['votes','y'], inplace=True)
         return df_src
 
@@ -203,6 +230,7 @@ class SofaDataProvider:
         df=self._provide_formations(df)
         df=self._provide_graph(df)
         df=self._provide_votes(df)
+        df=self._provide_statistics(df)
         return df
     
     def provide_data(self):
