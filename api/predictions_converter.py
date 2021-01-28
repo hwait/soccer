@@ -28,12 +28,15 @@ class PredictionsConverter:
             df_preds['pred_draw']=np.where(df_preds['prob_draw']>threshold,1,0)
             df_preds['pred_away']=np.where(df_preds['prob_away']>threshold,1,0)
         df_preds=df_preds[(df_preds['pred_home']==1) | (df_preds['pred_draw']==1) |(df_preds['pred_away']==1)]
-        df_preds['winner_home']=df_preds['winner_home'].astype(int)
-        df_preds['winner_draw']=df_preds['winner_draw'].astype(int)
-        df_preds['winner_away']=df_preds['winner_away'].astype(int)
-        df_preds['pred_home']=df_preds['pred_home'].astype(int)
-        df_preds['pred_draw']=df_preds['pred_draw'].astype(int)
-        df_preds['pred_away']=df_preds['pred_away'].astype(int)
+        try:
+            df_preds['winner_home']=df_preds['winner_home'].astype(int)
+            df_preds['winner_draw']=df_preds['winner_draw'].astype(int)
+            df_preds['winner_away']=df_preds['winner_away'].astype(int)
+            df_preds['pred_home']=df_preds['pred_home'].astype(int)
+            df_preds['pred_draw']=df_preds['pred_draw'].astype(int)
+            df_preds['pred_away']=df_preds['pred_away'].astype(int)
+        except:
+            display(df_preds)
         df_preds['win']=0
         df_preds.loc[(df_preds['winner_home']==df_preds['pred_home']) & (df_preds['winner_home']==1),'win']=1
         df_preds.loc[(df_preds['winner_draw']==df_preds['pred_draw']) & (df_preds['winner_draw']==1),'win']=1
@@ -56,7 +59,7 @@ class PredictionsConverter:
         self.DF=df_preds[['ds', 'country', 'liga', 't1', 't2', 'sc1', 'sc2', 'odds_home', 'odds_draw', 'odds_away','winner_home', 'winner_draw', 'winner_away','pred_home','pred_draw','pred_away','prob_home', 'prob_draw', 'prob_away','win','prf']] if self.ODDS else df_preds[['ds', 'country', 'liga', 't1', 't2', 'sc1', 'sc2', 'winner_home', 'winner_draw', 'winner_away','pred_home','pred_draw','pred_away','prob_home', 'prob_draw', 'prob_away','win']]
     
     def performance_metrics(self):
-        display(api.util.get_performance_metrics(self.Y, self.YHAT, self.CLASSES))
+        return api.util.get_performance_metrics(self.Y, self.YHAT, self.CLASSES)
     
     def graph(self,mode='tpfp'):
         if mode == 'tpfp':
@@ -67,3 +70,4 @@ class PredictionsConverter:
     def profit(self):
         df_=self.DF.loc[self.DF['odds_home']>0]
         print('WAG:{}; ACC: {}; PRF: {}; ROI: {}'.format(df_.shape[0],df_.win.mean(), df_.prf.sum(), df_.prf.sum()/df_.shape[0]))
+        return df_.shape[0], df_.win.mean(), df_.prf.sum(), df_.prf.sum()/df_.shape[0]
