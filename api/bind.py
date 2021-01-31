@@ -1,4 +1,5 @@
 import glob
+from os import path
 import pandas as pd
 import numpy as np
 import pytz
@@ -49,7 +50,7 @@ def check_teams(df):
     b=df[['country','tid2','t2','op_tid2','op_t2']]
     a.columns=b.columns=['country','tid','t','op_tid','op_t']
     teams=pd.concat([a,b], axis=0).drop_duplicates().sort_values(by='tid')
-    mask = teams.tid.duplicated(keep=False)
+    #mask = teams.tid.duplicated(keep=False)
     #display(teams[mask])
     return teams
 
@@ -85,7 +86,7 @@ def filter_tids(df, teams):
     return df_both, df_1,df_2,df_none
 
 
-    def process_by_tid(df_ss, df_op, type='both'):
+def process_by_tid(df_ss, df_op, type='both'):
     df_op_=df_op.copy()
     df_op_=df_op_.rename(columns={'tid1':'op_tid1','tid2':'op_tid2','t1':'op_t1','t2':'op_t2','mid':'op_mid'})
     print(f'IN: Sofa={df_ss.shape}, OP={df_op_.shape}')
@@ -132,7 +133,7 @@ def filter_tids(df, teams):
     return df_binded.drop(columns='date'),df_ss.drop(columns='date')
 
 
-    def bind_iteration(n,df, df_ss, df_op):
+def bind_iteration(n,df, df_ss, df_op):
     print(f'**** {n} ITERATION ****')
     teams=check_teams(df)
     save(df,teams)

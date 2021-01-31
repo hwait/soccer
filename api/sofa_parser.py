@@ -125,7 +125,7 @@ class SofaScoreParser:
                 away_row[col]= j['away']
         return home_row,away_row
 
-    def parse_matches(self):
+    def parse_matches(self, today=''):
         arr = {'votes':[],
             'graph':[],
             'incidents':[],
@@ -134,9 +134,9 @@ class SofaScoreParser:
             'formations':[]  }
         row={}
         for file in tqdm(listdir(self.MATCHES_RAW_PATH)):
-            if len(file)>25 or file=='.empty':
+            if file=='.empty':
                 continue
-            mid=int(file.split('_')[1][:-5])
+            mid=int(file.split('_')[1][:7])
             with open(self.MATCHES_RAW_PATH+file, 'r', encoding='utf8') as f:
                 data=json.load(f)
             isFound=True
@@ -165,10 +165,12 @@ class SofaScoreParser:
                 move( self.MATCHES_RAW_PATH+file, self.MATCHES_RAW_PATH_OUT+file)
         
         name='votes'
-        file_name=self.DATA_PATH+name+'.csv'
+        file_name=self.DATA_PATH+name+today+'.csv'
         if len(arr[name])>0:
             if path.exists(file_name):
-                pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])]).to_csv(file_name, index=False)
+                dfres=pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])])
+                dfres=dfres.drop_duplicates(subset=['mid'], keep='last')
+                dfres.to_csv(file_name, index=False)
             else:
                 pd.DataFrame(data=arr[name]).to_csv(file_name, index=False)
         
@@ -176,7 +178,10 @@ class SofaScoreParser:
         file_name=self.DATA_PATH+name+'.csv'
         if len(arr[name])>0:
             if path.exists(file_name):
-                pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])]).to_csv(file_name, index=False)
+                dfres=pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])])
+                dfres=dfres.drop_duplicates(keep='last')
+                dfres.to_csv(file_name, index=False)
+                
             else:
                 pd.DataFrame(data=arr[name]).to_csv(file_name, index=False)
         
@@ -184,23 +189,29 @@ class SofaScoreParser:
         file_name=self.DATA_PATH+name+'.csv'
         if len(arr[name])>0:
             if path.exists(file_name):
-                pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])]).to_csv(file_name, index=False)
+                dfres=pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])])
+                dfres=dfres.drop_duplicates(keep='last')
+                dfres.to_csv(file_name, index=False)
             else:
                 pd.DataFrame(data=arr[name]).to_csv(file_name, index=False)
         
         name='lineups'
-        file_name=self.DATA_PATH+name+'.csv'
+        file_name=self.DATA_PATH+name+today+'.csv'
         if len(arr[name])>0:
             if path.exists(file_name):
-                pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])]).to_csv(file_name, index=False)
+                dfres=pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])])
+                dfres=dfres.drop_duplicates(subset=['mid', 'slug'], keep='last')
+                dfres.to_csv(file_name, index=False)
             else:
                 pd.DataFrame(data=arr[name]).to_csv(file_name, index=False)
         
         name='formations'
-        file_name=self.DATA_PATH+name+'.csv'
+        file_name=self.DATA_PATH+name+today+'.csv'
         if len(arr[name])>0:
             if path.exists(file_name):
-                pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])]).to_csv(file_name, index=False)
+                dfres=pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])])
+                dfres=dfres.drop_duplicates(keep='last')
+                dfres.to_csv(file_name, index=False)
             else:
                 pd.DataFrame(data=arr[name]).to_csv(file_name, index=False)
         
@@ -208,7 +219,9 @@ class SofaScoreParser:
         file_name=self.DATA_PATH+name+'.csv'
         if len(arr[name])>0:
             if path.exists(file_name):
-                pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])]).to_csv(file_name, index=False)
+                dfres=pd.concat([pd.read_csv(file_name, index_col=None), pd.DataFrame(data=arr[name])])
+                dfres=dfres.drop_duplicates(keep='last')
+                dfres.to_csv(file_name, index=False)
             else:
                 pd.DataFrame(data=arr[name]).to_csv(file_name, index=False)
     

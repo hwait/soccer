@@ -27,12 +27,12 @@ class DataProvider:
 
         self.DATA_FILE='matches.csv'
         self.DATA_DONE_FILE='matches_done.csv'
-        
+        self.DATA_TODAY_FILE='matches_today.csv'
+        self.DATA_INPLAY_FILE='matches_inplay.csv'
         self.SS_DATA_PATH='data/sofa/'
         self.FB_DATA_PATH='data/fbref/'
         self.OP_DATA_PATH='data/op/'
         self.ELO_DATA_PATH='data/elo/'
-
         self.SS_DAYS_RAW_PATH='raw/sofa/days/'
         self.SS_MATCHES_RAW_PATH='raw/sofa/matches/'
         self.FB_DAYS_RAW_PATH='raw/fbref/days/'
@@ -156,17 +156,18 @@ class DataProvider:
         referer=f'https://www.sofascore.com/football/{dstr}'
         self.HEADERS=self._generate_headers(referer)
         is_loaded=self._load_json('votes',data)
+        print(', lineups...', end='')
+        if is_loaded:
+            is_loaded=self._load_json('lineups',data)
         if stage>0 and is_loaded: # Match started
             print(', graph...', end='')
             self._load_json('graph',data)
             print(', statistics...', end='')
             self._load_json('statistics',data)
-            print(', lineups...', end='')
-            self._load_json('lineups',data)
             print(', incidents...', end='')
             self._load_json('incidents',data)
-        if stage>89: # Match completed
-            self.df_matches.loc[self.df_matches['id']==mid,'done']=1
+        #if stage>89: # Match completed
+        self.df_matches.loc[self.df_matches['id']==mid,'done']=1
         print(' done.')
 
     def _append_save(self,df, f):
@@ -238,24 +239,28 @@ class DataProvider:
                 print(f'ERROR {r.status_code}!!!', end='')
                 self.SERVER_ERROR=True
                 self._load_data(d)
-        
-
+      
 
     def load_matches(self):
         self.COUNTER=0
         self.PAUSE=True
         file_name=self.SS_DATA_PATH+self.DATA_FILE
         file_done_name=self.SS_DATA_PATH+self.DATA_DONE_FILE
+        file_inplay_name=self.SS_DATA_PATH+self.DATA_INPLAY_FILE
+        file_today_name=self.SS_DATA_PATH+self.DATA_TODAY_FILE
         self.df_matches=pd.read_csv(file_name, index_col=None)
         self.df_matches = self.df_matches.sample(frac=1, axis=1).reset_index(drop=True)
-        self.DATA=self.df_matches.loc[(self.df_matches['done']==0) & (self.df_matches['status']>89)][['id', 'status', 'ts']].values
+        self.DATA=self.df_matches.loc[self.df_matches['done']==0][['id', 'status', 'ts']].values
         np.random.shuffle(self.DATA)
         self.TYPE='matches'
         for data in self.DATA:
             #print('LOOP:', data)
             self._load_data(data)
-        self._append_save(self.df_matches[self.df_matches['done']==1], file_done_name)
-        self.df_matches[self.df_matches['done']==0].to_csv(file_name, index=False)
+        self._append_save(self.df_matches[(self.df_matches['done']==1) & (self.df_matches['status']>89)], file_done_name)
+        self._append_save(self.df_matches[(self.df_matches['done']==1) & (self.df_matches['status']>0) & (self.df_matches['status']<=89)], file_inplay_name)
+        self._append_save(self.df_matches[(self.df_matches['done']==1) & (self.df_matches['status']==0)], file_today_name)
+        self.df_matches=self.df_matches[self.df_matches['done']==0]
+        self.df_matches.to_csv(file_name, index=False)
 
     def load_days(self, ds=None,de=None):
         self.df_matches=pd.read_csv(self.SS_DATA_PATH+self.DATA_FILE, index_col=None)
@@ -268,7 +273,6 @@ class DataProvider:
             while d<=de:
                 dates.append(d)
                 d+=timedelta(days=1)
-
         dates=np.array(dates) 
         np.random.shuffle(dates)
         self.COUNTER=0
@@ -480,6 +484,28 @@ class DataProvider:
                 c=0
             c+=1
             #break
+
+    def load_op_matches_today(self):
+        options = {
+                'connection_keep_alive': True,
+                'connection_timeout': None
+            }
+        #self.firefox = webdriver.Firefox(executable_path=r'../lib/geckodriver.exe',seleniumwire_options=options)
+        self.firefox = webdriver.Firefox(executable_path=r'../lib/geckodriver.exe')
+        self.firefox.scopes = ['fb.oddsportal.com/feed/match/*']
+        csv_name=self.OP_DATA_PATH+self.DATA_TODAY_FILE
+        df_matches=pd.read_csv(csv_name, index_col=None)
+        df_matches=df_matches.sample(frac=1).reset_index(drop=True)
+        for row in df_matches[df_matches['done']==0].itertuples():
+            link=row.link
+            file_name=self.OP_MATCHES_RAW_PATH+link.split('/')[4].split('-')[-1]+'.json'
+            #print(link, file_name)
+            html=self._load_link(file_name,link)
+            if "oddsdata" in html:
+                df_matches.at[row.Index, 'done'] = 1
+        print('saving...')
+        df_matches.to_csv(csv_name, index=False)
+        #break
 
     def load_elos(self, ds, de):
         d = datetime.strptime(ds, '%Y-%m-%d')

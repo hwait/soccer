@@ -7,7 +7,7 @@ import api.util
 from sklearn.preprocessing import LabelEncoder,OneHotEncoder,MinMaxScaler
 
 class OpDataProvider:
-    def __init__(self, include=[],exclude=[], load=False):
+    def __init__(self, include=[],exclude=[], load=False, today=False):
         self.LOCAL_TZ = 'Asia/Almaty'
         self.SERVER_TZ = 'UTC'
         self.DATA_PATH='data/op/'
@@ -18,7 +18,8 @@ class OpDataProvider:
         self.COL_NUM=[]
         self.COL_LBL=[]
         self.COL_INF=[]
-        self.LOAD=load
+        self.TODAY=today
+        self.LOAD=True if today else load
     
     def _load_prerequisites(self,name):
         with open(os.path.join(self.PREREQUISITES_PATH, name),'rb') as f:
@@ -26,7 +27,6 @@ class OpDataProvider:
         return encoder
     
     def _save_prerequisite(self, name, data):
-        folder='prerequisites/'
         os.makedirs(self.PREREQUISITES_PATH, mode=0o777, exist_ok=True)
         with open(os.path.join(self.PREREQUISITES_PATH, name), mode='wb') as f:
             pickle.dump(data, f) 
@@ -88,7 +88,10 @@ class OpDataProvider:
     def _provide_odds(self, df_src):
         self.COL_NUM+=['drift_home','drift_draw','drift_away']
         #self.COL_NUM+=['oddsprob_home','oddsprob_draw','oddsprob_away','drift_home','drift_draw','drift_away']
-        df=pd.read_csv(self.DATA_PATH+'odds.csv', index_col=False)
+        if self.TODAY:
+            df=pd.read_csv(self.DATA_PATH+'odds_today.csv', index_col=False)
+        else:
+            df=pd.read_csv(self.DATA_PATH+'odds.csv', index_col=False)
         df=df.dropna()
         df['w1']=1/df['w1']
         df['w2']=1/df['w2']
@@ -126,7 +129,12 @@ class OpDataProvider:
         self.COL_CAT+=cat_colums
         self.COL_LBL+=label_colums
         cols=np.unique(info_colums+num_colums+cat_colums+label_colums)
-        df=pd.read_csv(self.DATA_PATH+'matches_done.csv', index_col=False)
+        if self.TODAY:
+            df=pd.read_csv(self.DATA_PATH+'matches_today.csv', index_col=False)
+            df['sc1']=0
+            df['sc2']=0
+        else:
+            df=pd.read_csv(self.DATA_PATH+'matches_done.csv', index_col=False)
         df = df.rename(columns={'odds1': 'odds_home','oddsdraw': 'odds_draw','odds2': 'odds_away'})
         df['t1']=df['t1'].replace('[^a-zA-Z0-9 ]', '', regex=True).str.lower()
         df['t2']=df['t2'].replace('[^a-zA-Z0-9 ]', '', regex=True).str.lower()

@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 class OpParser:
     def __init__(self):
+        self.TODAY=False
         self.DATA_PATH='data/op/'
         self.RAW_PATH='raw/op/'
         self.DONE_PATH='raw/done/op/'
@@ -17,6 +18,7 @@ class OpParser:
         self.DAYS_RAW_PATH_OUT=self.DONE_PATH+'days/'
         self.MATCHES_RAW_PATH_OUT=self.DONE_PATH+'matches/'
         self.DATALIST=[]
+        self.EXCLUDE_COUNTRIES=['africa','nicaragua','republic-of-the-congo','costa-rica','ghana','bahrain','oman','morocco','northern-ireland','mauritania','malta','cyprus','gambia','iceland','el-salvador','iraq','saudi-arabia','tunisia','ethiopia','guatemala','kuwait','bangladesh','zambia','andorra','albania','kenya','nigeria']
         self.BIDS=[  1,   2,   3,   5,   9,  14,  15,  16,  18,  21,  24,  26,  27,
              30,  32,  33,  43,  44,  46,  49,  56,  57,  73,  75,  76, 128,
             147, 149, 157, 164, 381, 383]
@@ -42,8 +44,9 @@ class OpParser:
         dfr=dfr.drop_duplicates(keep='last')
         dfr.to_csv(f, index=False)
 
+    
     def parse_days(self):
-        pCaption=r'<a href="([^"]+)">NEXT MATCHES'
+        #pMatch=r'<tr[^>]+><td class="table-time datet t(\d+)-[^>]+>[^<]+</td><td class="name table-participant"><a href="([^"]+)">([^<]+)</a></td><td class="center bold table-odds table-score">([^<]+)</td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td class="center info-value">([^<]+)</td></tr>'
         pMatch=r'<tr[^>]+><td class="table-time datet t(\d+)-[^>]+>[^<]+</td><td class="name table-participant"><a href="([^"]+)">([^<]+)</a></td><td class="center bold table-odds table-score">([^<]+)</td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td class="center info-value">([^<]+)</td></tr>'
         files=listdir(self.DAYS_RAW_PATH)
         print(len(files))
@@ -66,6 +69,8 @@ class OpParser:
                 for x in mm:
                     t,link,name,result, odds1, oddsdraw, odds2, bn=x
                     _,_,country,liga,_,_=link.split('/')
+                    if country in self.EXCLUDE_COUNTRIES:
+                        continue
                     t1,t2=name.split(' - ')
                     scores=result.split(':')
                     if len(scores)<2:
@@ -87,14 +92,57 @@ class OpParser:
                         'link':link                          
                     })
             #print(file, len(html))
-            move(self.DAYS_RAW_PATH+file,self.DAYS_RAW_PATH_OUT+file)
+            #move(self.DAYS_RAW_PATH+file,self.DAYS_RAW_PATH_OUT+file)
             #break
         
         df=pd.DataFrame(self.DATALIST)
         df['done']=0
         self._append_save_matches(df, self.DATA_PATH+'matches.csv')
+
+    def parse_today(self):
+        pMatch=r'<tr[^>]+><td class="table-time datet t(\d+)-[^>]+>[^<]+</td><td class="name table-participant" colspan="2"><a href="([^"]+)">([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+><a[^>]+>([^<]+)</a></td><td[^>]+>([^<]+)</td></tr>'
+        files=listdir(self.DAYS_RAW_PATH)
+        print(len(files))
+        for file in files:
+            if file=='.empty':
+                continue
+            with open(self.DAYS_RAW_PATH+file, 'r', encoding='utf8') as f:
+                html=f.read()
+            #html=html.replace('/results/">RESULTS','')
+            #html=html.replace('<span class="bold">','').replace('</span>','')
+            html=re.sub('<span[^>]+>[^<]+</span>','',html)
+            html=re.sub('<a href="javascript[^>]+>&nbsp;</a>','',html)
+            mm=re.findall(pMatch, html)
+            print(len(mm))
+            if len(mm)>0:
+                for x in mm:
+                    t,link,name,odds1, oddsdraw, odds2, bn=x
+                    _,_,country,liga,_,_=link.split('/')
+                    if country in self.EXCLUDE_COUNTRIES:
+                        continue
+                    t1,t2=name.split(' - ')
+                    self.DATALIST.append({
+                        'ds':datetime.utcfromtimestamp(int(t)),
+                        'country':country,
+                        'liga':liga,
+                        'season':'2020/2021',
+                        't1':t1,
+                        't2':t2,
+                        'odds1':odds1,
+                        'oddsdraw':oddsdraw,
+                        'odds2':odds2,
+                        'bn':bn,
+                        'link':link                          
+                    })
+            #print(file, len(html))
+            move(self.DAYS_RAW_PATH+file,self.DAYS_RAW_PATH_OUT+file)
+            #break
         
-    def parse_matches(self):
+        df=pd.DataFrame(self.DATALIST)
+        df['done']=0
+        self._append_save_matches(df, self.DATA_PATH+'matches_today.csv')
+        
+    def parse_matches(self, today=False):
         # 0 - w1
         # 1 - x
         # 2 - w2
@@ -151,6 +199,8 @@ class OpParser:
             #break
         #print(self.DATALIST)
         df=pd.concat(self.DATALIST, axis=0)
-
-        self._append_save_odds(df, self.DATA_PATH+'odds.csv')  
+        if today:
+            self._append_save_odds(df, self.DATA_PATH+'odds_today.csv')
+        else:
+            self._append_save_odds(df, self.DATA_PATH+'odds.csv')
     

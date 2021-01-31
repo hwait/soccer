@@ -6,7 +6,7 @@ import api.util
 from sklearn.preprocessing import LabelEncoder,OneHotEncoder,MinMaxScaler
 
 class SofaDataProvider:
-    def __init__(self, include=[],exclude=[], load=False):
+    def __init__(self, include=[],exclude=[], load=False, today=False):
         self.LOCAL_TZ = 'Asia/Almaty'
         self.SERVER_TZ = 'UTC'
         self.DATA_PATH='data/sofa/'
@@ -17,7 +17,8 @@ class SofaDataProvider:
         self.COL_NUM=[]
         self.COL_LBL=[]
         self.COL_INF=[]
-        self.LOAD=load
+        self.TODAY=today
+        self.LOAD=True if today else load
     
     def _load_prerequisites(self,name):
         with open(os.path.join(self.PREREQUISITES_PATH, name),'rb') as f:
@@ -25,7 +26,6 @@ class SofaDataProvider:
         return encoder
     
     def _save_prerequisite(self, name, data):
-        folder='prerequisites/'
         os.makedirs(self.PREREQUISITES_PATH, mode=0o777, exist_ok=True)
         with open(os.path.join(self.PREREQUISITES_PATH, name), mode='wb') as f:
             pickle.dump(data, f) 
@@ -133,14 +133,18 @@ class SofaDataProvider:
 
     def _provide_formations(self, df_src):
         self.COL_CAT+=['home_formation','away_formation']
-        df=pd.read_csv(self.DATA_PATH+'formations.csv', index_col=False)
+        if self.TODAY:
+            df=pd.read_csv(self.DATA_PATH+'formations_today.csv', index_col=False)
+        else:
+            df=pd.read_csv(self.DATA_PATH+'formations.csv', index_col=False)
 
         df=self._encode('le', ['formation_h','formation_a'], ['home_formation','away_formation'], df)
        
         df_src=df_src.merge(df, on='mid', how='left')
-        df_src=df_src.dropna(subset=['home_formation'])
-        df_src['home_formation'] = df_src['home_formation'].astype(int)
-        df_src['away_formation'] = df_src['away_formation'].astype(int)
+        if not self.TODAY:
+            df_src=df_src.dropna(subset=['home_formation'])
+            df_src['home_formation'] = df_src['home_formation'].astype(int)
+            df_src['away_formation'] = df_src['away_formation'].astype(int)
         return df_src
 
     def _provide_incidents(self):
@@ -161,7 +165,10 @@ class SofaDataProvider:
     def _provide_votes(self, df_src):
         self.COL_NUM+=['vote_home','vote_draw','vote_away']
         self.COL_CAT+=['pop_r']
-        df=pd.read_csv(self.DATA_PATH+'votes.csv', index_col=False)
+        if self.TODAY:
+            df=pd.read_csv(self.DATA_PATH+'votes_today.csv', index_col=False)
+        else:
+            df=pd.read_csv(self.DATA_PATH+'votes.csv', index_col=False)
         df=df.dropna()
         df['votes']=df[['vote1','vote2','voteX']].sum(axis=1)
         df['vote_home']=df['vote1']/df['votes']
@@ -170,7 +177,8 @@ class SofaDataProvider:
         df=df[['mid','vote_home','vote_draw','vote_away','votes']]
 
         df_src=df_src.merge(df, on='mid', how='left')
-        df_src=df_src.dropna(subset=['votes'])
+        if not self.TODAY:
+            df_src=df_src.dropna(subset=['votes'])
         df_src['y']=df_src.ds.dt.year
 
         name='r_votes'
@@ -185,7 +193,8 @@ class SofaDataProvider:
         for key in intervals:
             df_src.loc[df_src.y==key, 'pop_r']=pd.cut(df_src[df_src.y==key]['votes'], bins=intervals[key], labels=False, include_lowest=True)
         #df_src.pop_r=df_src.pop_r.astype(int)
-        df_src.drop(columns=['votes','y'], inplace=True)
+        if not self.TODAY:
+            df_src.drop(columns=['votes','y'], inplace=True)
         return df_src
 
     def _provide_matches(self):
@@ -200,12 +209,16 @@ class SofaDataProvider:
         chars0=['ó','é','í','ş','ã','İ','ğ','ç','ü','É','â','Ç','õ','ł','ą','Ś','ø','ń','ț','å','Å','ß', 'æ', 'Ž','ş', 'ə','Ö','ı','á','î','ñ','ö','ź','ú','è','Ł','ę','Ş','ä','ë','ô','ș','ū','č','Š','Þ','ė','Ä','ă','ì','š','i','ć','ň','ž','ư','ơ','ê','à','ð','ő','Ü','ý','ď','Á','ř','Č','Ú']
         chars1=['o','e','i','s','a','I','g','c','u','E','a','C','o','l','a','s','o','n','t','a','A','ss','ae','Z','sh','a','O','i','a','i','n','o','z','u','e','L','e','S','a','e','o','s','u','c','S','P','e','A','a','i','s','i','c','n','z','u','o','e','a','d','o','U','y','d','A','r','C','U']
         dicUnicode2En=dict(zip(chars0, chars1))
-
+        
         df_countries=pd.read_csv(self.DATA_PATH+'countries.csv', index_col=None)
         df_countries['Name']=df_countries['Name'].str.lower()
         df_countries.columns=['country','countryCode']
         
-        df=pd.read_csv(self.DATA_PATH+'matches_done.csv', index_col=False)
+        if self.TODAY:
+            df=pd.read_csv(self.DATA_PATH+'matches_today.csv', index_col=False)
+            df['winnerCode']=0
+        else:
+            df=pd.read_csv(self.DATA_PATH+'matches_done.csv', index_col=False)
         df['round']=df['round'].fillna(0).astype(int)
         df['ts']=pd.to_datetime(df['ts'])
         df['winner']=df['winnerCode'].apply(lambda x: 'home' if x==1.0 else 'away' if x==2.0 else 'draw')
@@ -228,9 +241,10 @@ class SofaDataProvider:
     def _load_data(self):
         df=self._provide_matches()
         df=self._provide_formations(df)
-        df=self._provide_graph(df)
         df=self._provide_votes(df)
-        df=self._provide_statistics(df)
+        if not self.TODAY:
+            df=self._provide_graph(df)
+            df=self._provide_statistics(df)
         return df
     
     def provide_data(self):
